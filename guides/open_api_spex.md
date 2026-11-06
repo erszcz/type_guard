@@ -62,6 +62,9 @@ generate a function that reads the cast body of a conn as `t()`.
 
 ## Limits
 
+- A typespec cannot state most constraints of a schema, such as `pattern` or
+  `maxItems`. The cast still checks them. A positive `minItems` gives a nonempty
+  list, `[t, ...]`, whatever the number is.
 - `%OpenApiSpex.Reference{}` has the type `term()`, because its target is known
   only at run time. Name the schema module instead.
 - A typespec cannot name a string key of a map, so properties with string names

@@ -35,6 +35,7 @@ defmodule TypeGuard.Fixtures.OpenApiSpex.Search do
     properties: %{
       limit: %Schema{type: :integer, default: 10},
       tag: %Schema{type: :string},
+      tags: %Schema{type: :array, items: %Schema{type: :string}, minItems: 1},
       term: %Schema{type: :string}
     },
     required: [:term],

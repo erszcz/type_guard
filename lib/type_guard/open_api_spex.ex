@@ -43,6 +43,11 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
         object parts.
       * A `nullable` schema also admits `nil`.
 
+    The cast also checks constraints that a typespec cannot state, such as
+    `pattern` or `maxItems`, so the type leaves them out. A positive `minItems`
+    is the exception: it makes the type a nonempty list, `[t, ...]`. That is
+    weaker than `minItems: 3`, but it holds for every value of the schema.
+
     A schema that this module cannot describe has the type `term()`.
 
     ## References to other schema modules
@@ -175,7 +180,17 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
     defp by_type(%Schema{type: :integer}), do: {:integer, [], []}
     defp by_type(%Schema{type: :number}), do: {:number, [], []}
     defp by_type(%Schema{type: :boolean}), do: {:boolean, [], []}
+
+    defp by_type(%Schema{type: :array, items: nil, minItems: minimum})
+         when is_integer(minimum) and minimum > 0,
+         do: {:nonempty_list, [], []}
+
     defp by_type(%Schema{type: :array, items: nil}), do: {:list, [], []}
+
+    defp by_type(%Schema{type: :array, items: items, minItems: minimum})
+         when is_integer(minimum) and minimum > 0,
+         do: [value(items), {:..., [], []}]
+
     defp by_type(%Schema{items: items, type: :array}), do: [value(items)]
     defp by_type(%Schema{type: :object} = schema), do: map_type(schema)
 

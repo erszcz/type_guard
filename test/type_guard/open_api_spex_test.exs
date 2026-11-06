@@ -121,6 +121,21 @@ defmodule TypeGuard.OpenApiSpexTest do
                value(%Schema{type: :string, format: :"date-time", "x-validate": Validator})
     end
 
+    test "a positive minItems is a nonempty list" do
+      items = %Schema{type: :integer}
+
+      assert "[integer(), ...]" == value(%Schema{type: :array, items: items, minItems: 1})
+      assert "[integer(), ...]" == value(%Schema{type: :array, items: items, minItems: 3})
+      assert "nonempty_list()" == value(%Schema{type: :array, minItems: 1})
+    end
+
+    test "a minItems of zero is a list" do
+      items = %Schema{type: :integer}
+
+      assert "[integer()]" == value(%Schema{type: :array, items: items, minItems: 0})
+      assert "list()" == value(%Schema{type: :array, minItems: 0})
+    end
+
     test "a string enum is String.t()" do
       assert "String.t()" == value(%Schema{type: :string, enum: ["a", "b"]})
     end
@@ -221,6 +236,14 @@ defmodule TypeGuard.OpenApiSpexTest do
 
     test "a map without a required key does not conform" do
       refute TypeGuard.check(Search, :t, %{limit: 10})
+    end
+
+    test "an empty list does not conform to an array with a positive minItems" do
+      assert {:ok, %{term: "a", tags: ["b"]} = search} =
+               cast(%{"term" => "a", "tags" => ["b"]}, Search)
+
+      assert TypeGuard.check(Search, :t, search)
+      refute TypeGuard.check(Search, :t, %{search | tags: []})
     end
 
     test "a map with a value of the wrong type or an unknown key does not conform" do
