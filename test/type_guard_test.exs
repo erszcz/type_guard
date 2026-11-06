@@ -75,6 +75,14 @@ defmodule TypeGuardTest do
       assert check(:counts, %{})
     end
 
+    test "a struct is a map with a :__struct__ entry, so it does not raise" do
+      struct = %TypeGuard.Fixtures.Settings{theme: :light}
+
+      refute check(:counts, struct)
+      refute check(:required_key_type, struct)
+      assert check(:required_any_entry, struct)
+    end
+
     test "bitstrings" do
       assert check(:digest, :crypto.hash(:sha256, "x"))
       refute check(:digest, "short")

@@ -533,7 +533,8 @@ defmodule TypeGuard.Compiler do
   # same `map_field_exact`, so each of them requires an entry. A literal key
   # requires that key. A key type requires at least one entry with a key of
   # that type. Only `optional(k) => v` allows no entry. An entry that matches
-  # no declared pair fails the check.
+  # no declared pair fails the check. A struct is a map with a `:__struct__`
+  # entry, and it is not enumerable, so the checks read its list of entries.
   @spec map(list(), Macro.t(), map()) :: Macro.t()
   def map(pairs, v, ctx) do
     pairs = Enum.map(pairs, &map_pair/1)
@@ -563,7 +564,12 @@ defmodule TypeGuard.Compiler do
             quote(do: map_size(unquote(v)) > 0)
 
           pair ->
-            quote(do: Enum.any?(unquote(v), fn {unquote(k), unquote(val)} -> unquote(pair) end))
+            quote(
+              do:
+                Enum.any?(Map.to_list(unquote(v)), fn {unquote(k), unquote(val)} ->
+                  unquote(pair)
+                end)
+            )
         end
       end
 
@@ -589,7 +595,10 @@ defmodule TypeGuard.Compiler do
             do: true,
             else:
               quote(
-                do: Enum.all?(unquote(v), fn {unquote(k), unquote(val)} -> unquote(entry) end)
+                do:
+                  Enum.all?(Map.to_list(unquote(v)), fn {unquote(k), unquote(val)} ->
+                    unquote(entry)
+                  end)
               )
       end
 
