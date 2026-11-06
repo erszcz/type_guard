@@ -63,7 +63,9 @@ end
 - **Integrations turn on by themselves.** With Ecto, `TypeGuard.Ecto`
   validates changesets against `t()`. With PolymorphicEmbed, a polymorphic
   field is checked against its declared embed modules. See
-  [Ecto](guides/ecto.md).
+  [Ecto](guides/ecto.md). With OpenApiSpex, `TypeGuard.OpenApiSpex` builds the
+  typespec of a cast request from its schema. See
+  [OpenApiSpex](guides/open_api_spex.md).
 
 ## Example
 

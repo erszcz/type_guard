@@ -28,6 +28,7 @@ defmodule TypeGuard.MixProject do
     [
       {:ecto, "~> 3.10", optional: true},
       {:polymorphic_embed, "~> 5.0", optional: true},
+      {:open_api_spex, "~> 3.21", optional: true},
       {:uuidv7, "~> 1.0", only: :test},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
@@ -42,11 +43,12 @@ defmodule TypeGuard.MixProject do
         "guides/conventions.md",
         "guides/remote_types.md",
         "guides/code_reloading.md",
-        "guides/ecto.md"
+        "guides/ecto.md",
+        "guides/open_api_spex.md"
       ],
       groups_for_extras: [Guides: ~r{guides/}],
       groups_for_modules: [
-        Integrations: [TypeGuard.Ecto, TypeGuard.PolymorphicEmbed]
+        Integrations: [TypeGuard.Ecto, TypeGuard.PolymorphicEmbed, TypeGuard.OpenApiSpex]
       ]
     ]
   end
