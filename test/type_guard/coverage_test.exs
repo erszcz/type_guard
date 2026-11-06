@@ -11,6 +11,7 @@ defmodule TypeGuard.CoverageTest do
              {Ids, :id} => :checked,
              {String, :t} => :override,
              {Decimal, :t} => :override,
+             {Ecto.Changeset, :types} => :spec,
              {DateTime, :t} => :override,
              {UUIDv7, :t} => :spec,
              {System, :time_unit} => :spec

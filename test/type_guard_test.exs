@@ -43,6 +43,38 @@ defmodule TypeGuardTest do
       refute check(:empty, %{a: 1})
     end
 
+    test "required(:key) requires the key, like %{key: t}" do
+      assert check(:required_key, %{id: "a"})
+      assert check(:required_key, %{id: "a", note: "b"})
+      refute check(:required_key, %{note: "b"})
+      refute check(:required_key, %{})
+      refute check(:required_key, %{id: 1})
+      refute check(:required_key, %{id: "a", other: 1})
+      assert check(:required_integer_key, %{1 => "a"})
+      refute check(:required_integer_key, %{})
+    end
+
+    test "required(type) and a bare key type require at least one entry" do
+      for type <- [:required_key_type, :bare_key_type] do
+        assert check(type, %{"a" => 1})
+        assert check(type, %{"a" => 1, "b" => 2})
+        refute check(type, %{})
+        refute check(type, %{"a" => "not an integer"})
+        refute check(type, %{"a" => 1, "b" => "not an integer"})
+        refute check(type, %{a: 1})
+      end
+    end
+
+    test "required(type) with an unchecked key and value requires one entry of that key type" do
+      assert check(:required_any_entry, %{a: 1})
+      refute check(:required_any_entry, %{})
+      refute check(:required_any_entry, %{"a" => 1})
+    end
+
+    test "optional(type) allows no entry" do
+      assert check(:counts, %{})
+    end
+
     test "bitstrings" do
       assert check(:digest, :crypto.hash(:sha256, "x"))
       refute check(:digest, "short")
@@ -123,6 +155,12 @@ defmodule TypeGuardTest do
       assert check(:calendar_unit, :millisecond)
       assert check(:calendar_unit, 1000)
       refute check(:calendar_unit, :fortnight)
+    end
+
+    test "a compiled map type requires its required entries" do
+      assert check(:changeset_types, %{name: :string})
+      refute check(:changeset_types, %{})
+      refute check(:changeset_types, %{"name" => :string})
     end
 
     test "a type of a module that does not use TypeGuard is trusted" do

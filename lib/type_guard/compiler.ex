@@ -529,17 +529,16 @@ defmodule TypeGuard.Compiler do
   end
 
   @doc false
-  # Maps: `%{key: t}` and `%{:key => t}` require the key, and
-  # `optional(k) => v`, `required(k) => v` and `k => v` constrain the other
-  # entries. An entry that matches no declared pair fails the check.
+  # Maps: Elixir compiles `key: t`, `required(k) => v` and a bare `k => v` to the
+  # same `map_field_exact`, so each of them requires an entry. A literal key
+  # requires that key. A key type requires at least one entry with a key of
+  # that type. Only `optional(k) => v` allows no entry. An entry that matches
+  # no declared pair fails the check.
   @spec map(list(), Macro.t(), map()) :: Macro.t()
   def map(pairs, v, ctx) do
-    {exact, assoc} =
-      Enum.split_with(pairs, fn
-        {key, _type} when is_atom(key) -> true
-        _assoc -> false
-      end)
+    pairs = Enum.map(pairs, &map_pair/1)
 
+    exact = for {:literal, key, type} <- pairs, do: {key, type}
     exact_keys = for {key, _type} <- exact, do: key
 
     exact_checks =
@@ -553,15 +552,24 @@ defmodule TypeGuard.Compiler do
     k = Macro.unique_var(:k, __MODULE__)
     val = Macro.unique_var(:val, __MODULE__)
 
-    entry_checks =
-      for {key_type, value_type} <- assoc do
-        key_type =
-          case key_type do
-            {kind, _, [type]} when kind in [:optional, :required] -> type
-            type -> type
-          end
+    entry = fn key_type, value_type ->
+      conjunction([check(key_type, k, ctx), check(value_type, val, ctx)])
+    end
 
-        conjunction([check(key_type, k, ctx), check(value_type, val, ctx)])
+    required_checks =
+      for {:required, key_type, value_type} <- pairs do
+        case entry.(key_type, value_type) do
+          true ->
+            quote(do: map_size(unquote(v)) > 0)
+
+          pair ->
+            quote(do: Enum.any?(unquote(v), fn {unquote(k), unquote(val)} -> unquote(pair) end))
+        end
+      end
+
+    entry_checks =
+      for {kind, key_type, value_type} <- pairs, kind in [:required, :optional] do
+        entry.(key_type, value_type)
       end
 
     rest =
@@ -585,8 +593,13 @@ defmodule TypeGuard.Compiler do
               )
       end
 
-    conjunction([quote(do: is_map(unquote(v))) | exact_checks] ++ [rest])
+    conjunction([quote(do: is_map(unquote(v))) | exact_checks] ++ required_checks ++ [rest])
   end
+
+  defp map_pair({{:required, _, [key]}, type}), do: map_pair({key, type})
+  defp map_pair({{:optional, _, [key]}, type}), do: {:optional, key, type}
+  defp map_pair({key, type}) when is_atom(key) or is_integer(key), do: {:literal, key, type}
+  defp map_pair({key, type}), do: {:required, key, type}
 
   @doc false
   @spec tuple(list(), Macro.t(), map()) :: Macro.t()

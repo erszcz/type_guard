@@ -101,8 +101,14 @@ defmodule TypeGuard.Spec do
     pairs =
       for {:type, _, kind, [key, value]} <- fields do
         case {kind, key} do
-          {:map_field_exact, {:atom, _, atom}} -> {atom, {__MODULE__, value}}
-          {_kind, key} -> {{:optional, [], [{__MODULE__, key}]}, {__MODULE__, value}}
+          {:map_field_exact, {literal, _, key}} when literal in [:atom, :integer] ->
+            {key, {__MODULE__, value}}
+
+          {:map_field_exact, key} ->
+            {{:required, [], [{__MODULE__, key}]}, {__MODULE__, value}}
+
+          {:map_field_assoc, key} ->
+            {{:optional, [], [{__MODULE__, key}]}, {__MODULE__, value}}
         end
       end
 

@@ -84,8 +84,9 @@ Inside a type, these forms are checked:
 | `[]` | The empty list. |
 | `[key: t]`, `keyword(t)` | A list of `{key, value}` tuples that conform. |
 | `{a, b}`, `{a, b, c}` | A tuple of that size whose elements conform. |
-| `%{key: t}` | A map with the key, whose value conforms. |
-| `%{optional(k) => v}`, `%{k => v}` | Each other entry has a conforming key and value. |
+| `%{key: t}`, `%{required(:key) => t}`, `%{:key => t}` | A map with the key, whose value conforms. |
+| `%{required(k) => v}`, `%{k => v}` | At least one entry has a key of type `k`, and each other entry conforms. |
+| `%{optional(k) => v}` | Each other entry has a conforming key and value. There can be none. |
 | `%{}` | The empty map. |
 | `%Mod{field: t}` | A struct of `Mod` whose listed fields conform. |
 | `<<_::size>>`, `<<_::_*unit>>` | A bitstring of that size or unit. |
@@ -94,8 +95,9 @@ Inside a type, these forms are checked:
 | A remote type | See [Remote types](remote_types.md). |
 
 A map type is closed: an entry that matches neither a listed key nor an
-`optional`/`required` pair fails the check. `required(k) => v` is checked
-like `optional(k) => v`: the check does not require an entry to exist.
+`optional`/`required` pair fails the check. Elixir compiles `key: t`,
+`required(k) => v` and `k => v` to the same type, so the check treats them the
+same: each one requires an entry. Only `optional(k) => v` allows no entry.
 
 These are not checked and pass: `term()`, `any()`, the arguments and result
 of a function type (only `is_function/1` is checked), the element types of a

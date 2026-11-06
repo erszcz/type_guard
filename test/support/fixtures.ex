@@ -22,6 +22,12 @@ defmodule TypeGuard.Fixtures.Shapes do
   @type nonempty_tags() :: [String.t(), ...]
   @type options() :: [verbose: boolean(), depth: non_neg_integer()]
   @type counts() :: %{optional(String.t()) => non_neg_integer()}
+  @type required_key() :: %{required(:id) => String.t(), optional(:note) => String.t()}
+  @type required_integer_key() :: %{required(1) => String.t()}
+  @type required_key_type() :: %{required(String.t()) => integer()}
+  @type bare_key_type() :: %{String.t() => integer()}
+  @type required_any_entry() :: %{required(atom()) => term()}
+  @type changeset_types() :: Ecto.Changeset.types()
   @type point() :: %{x: number(), y: number()}
   @type empty() :: %{}
   @type digest() :: <<_::256>>
