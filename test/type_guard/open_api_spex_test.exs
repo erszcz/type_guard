@@ -267,6 +267,71 @@ defmodule TypeGuard.OpenApiSpexTest do
     end
   end
 
+  describe "a schema that names itself through another schema module" do
+    alias TypeGuard.Fixtures.OpenApiSpex.{Group, Leaf}
+
+    @levels 6
+
+    # A group of `@levels` nested groups. Each group holds a leaf and the next group.
+    defp nested_group do
+      leaf = fn value -> %{"name" => "any_of", "values" => [value]} end
+
+      body =
+        Enum.reduce(1..@levels, leaf.("bottom"), fn level, inner ->
+          %{"conjunction" => "and", "filters" => [leaf.("level #{level}"), inner]}
+        end)
+
+      spec =
+        OpenApiSpex.resolve_schema_modules(%OpenApiSpex.OpenApi{
+          info: %OpenApiSpex.Info{title: "test", version: "1"},
+          paths: %{},
+          components: %OpenApiSpex.Components{schemas: %{"Group" => Group.schema()}}
+        })
+
+      reference = %Reference{"$ref": "#/components/schemas/Group"}
+      {:ok, %Group{} = group} = OpenApiSpex.cast_value(body, reference, spec)
+      group
+    end
+
+    # The path to the leaf of the last group: the second filter of each group.
+    defp last_leaf, do: List.flatten(List.duplicate([:filters, 1], @levels))
+
+    defp update_in_value(%_{} = struct, [key | rest], fun),
+      do: Map.update!(struct, key, &update_in_value(&1, rest, fun))
+
+    defp update_in_value(list, [index | rest], fun) when is_list(list),
+      do: List.update_at(list, index, &update_in_value(&1, rest, fun))
+
+    defp update_in_value(value, [], fun), do: fun.(value)
+
+    test "the cast value of a nested group conforms" do
+      group = nested_group()
+
+      assert %Leaf{values: ["bottom"]} = get_in_value(group, last_leaf())
+      assert TypeGuard.check(Group, :t, group)
+    end
+
+    test "a wrong value in the last group does not conform" do
+      group = nested_group()
+
+      for wrong <- [
+            &%{&1 | values: []},
+            &%{&1 | values: [1]},
+            &%{&1 | name: :all_of},
+            &Map.from_struct/1
+          ] do
+        refute TypeGuard.check(Group, :t, update_in_value(group, last_leaf(), wrong))
+      end
+    end
+
+    defp get_in_value(value, []), do: value
+
+    defp get_in_value(%_{} = struct, [key | rest]),
+      do: get_in_value(Map.fetch!(struct, key), rest)
+
+    defp get_in_value(list, [index | rest]), do: get_in_value(Enum.at(list, index), rest)
+  end
+
   describe "a module with unchecked: :raise" do
     defp compile_schema(name, schema) do
       module = Module.concat(TypeGuard.Fixtures.OpenApiSpex, name)

@@ -46,3 +46,56 @@ defmodule TypeGuard.Fixtures.OpenApiSpex.Search do
 
   @type t() :: unquote(TypeGuard.OpenApiSpex.type(@schema, __MODULE__))
 end
+
+# A filter is a leaf or a group of filters, so the check of a nested group goes through the two
+# modules in turn.
+defmodule TypeGuard.Fixtures.OpenApiSpex.Leaf do
+  @moduledoc false
+  use TypeGuard, unchecked: :raise
+
+  alias OpenApiSpex.Schema
+
+  @schema %Schema{
+    title: "Leaf",
+    type: :object,
+    properties: %{
+      name: %Schema{type: :string, enum: [:any_of, :none_of]},
+      values: %Schema{type: :array, items: %Schema{type: :string}, minItems: 1}
+    },
+    required: [:name, :values],
+    additionalProperties: false,
+    "x-struct": __MODULE__
+  }
+
+  defstruct [:name, :values]
+
+  def schema, do: @schema
+
+  @type t() :: unquote(TypeGuard.OpenApiSpex.type(@schema, __MODULE__))
+end
+
+defmodule TypeGuard.Fixtures.OpenApiSpex.Group do
+  @moduledoc false
+  use TypeGuard, unchecked: :raise
+
+  alias OpenApiSpex.Schema
+  alias TypeGuard.Fixtures.OpenApiSpex.Leaf
+
+  @schema %Schema{
+    title: "Group",
+    type: :object,
+    properties: %{
+      conjunction: %Schema{type: :string, enum: [:and, :or]},
+      filters: %Schema{type: :array, items: %Schema{oneOf: [Leaf, __MODULE__]}}
+    },
+    required: [:conjunction, :filters],
+    additionalProperties: false,
+    "x-struct": __MODULE__
+  }
+
+  defstruct [:conjunction, :filters]
+
+  def schema, do: @schema
+
+  @type t() :: unquote(TypeGuard.OpenApiSpex.type(@schema, __MODULE__))
+end
