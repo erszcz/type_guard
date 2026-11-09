@@ -237,6 +237,14 @@ defmodule TypeGuard.Compiler do
     end
   end
 
+  # A function type, such as `(integer() -> atom())`, is a list of one `->` in
+  # the typespec AST. Only the arity is checked.
+  def check([{:->, _, [[{:..., _, _}], _result]}], v, _ctx),
+    do: quote(do: is_function(unquote(v)))
+
+  def check([{:->, _, [args, _result]}], v, _ctx) when is_list(args),
+    do: quote(do: is_function(unquote(v), unquote(length(args))))
+
   # Lists: `[]`, `[t]`, `[t, ...]` and keyword lists such as `[a: t, b: u]`.
   def check([], v, _ctx), do: quote(do: unquote(v) === [])
   def check([{:..., _, _}], v, _ctx), do: quote(do: is_list(unquote(v)) and unquote(v) != [])

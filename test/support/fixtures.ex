@@ -54,6 +54,9 @@ defmodule TypeGuard.Fixtures.Shapes do
   @type maybe_count() :: integer() | 0 | nil
   @type maybe_unit() :: System.time_unit() | nil
   @type twice_nil() :: non_neg_integer() | nil | nil
+  @type callback() :: (integer(), atom() -> boolean())
+  @type thunk() :: (-> atom())
+  @type any_arity() :: (... -> atom())
   @type uses_private() :: secret()
   @typep secret() :: :hidden | :shown
 end

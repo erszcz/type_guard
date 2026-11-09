@@ -123,6 +123,17 @@ defmodule TypeGuardTest do
       refute check(:nothing, nil)
     end
 
+    test "function types check the arity" do
+      assert check(:callback, fn _n, _a -> true end)
+      refute check(:callback, fn _n -> true end)
+      refute check(:callback, [1])
+      assert check(:thunk, fn -> :a end)
+      refute check(:thunk, fn _x -> :a end)
+      assert check(:any_arity, &abs/1)
+      assert check(:any_arity, fn -> :a end)
+      refute check(:any_arity, [])
+    end
+
     test "unions with literals that a broader member covers" do
       assert check(:maybe_atom, nil)
       assert check(:maybe_atom, :a)
