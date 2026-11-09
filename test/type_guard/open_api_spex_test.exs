@@ -98,7 +98,7 @@ defmodule TypeGuard.OpenApiSpexTest do
       expected = [
         {"DateTime.t()", %Schema{type: :string, format: :"date-time"}},
         {"Date.t()", %Schema{type: :string, format: :date}},
-        {"term()", %Schema{type: :string, format: :binary}},
+        {"Plug.Upload.t() | String.t()", %Schema{type: :string, format: :binary}},
         {"String.t() | nil", %Schema{type: :string, nullable: true}},
         {"integer()", %Schema{type: :integer}},
         {"number()", %Schema{type: :number}},
@@ -108,7 +108,7 @@ defmodule TypeGuard.OpenApiSpexTest do
         {"[integer()]", %Schema{type: :array, items: %Schema{type: :integer}}},
         {"list()", %Schema{type: :array}},
         {"Other.t()", Other},
-        {"term()", %Reference{"$ref": "#/components/schemas/Other"}}
+        {"TypeGuard.unchecked()", %Reference{"$ref": "#/components/schemas/Other"}}
       ]
 
       for {type, schema} <- expected do
@@ -154,8 +154,23 @@ defmodule TypeGuard.OpenApiSpexTest do
       assert "String.t()" == value(%Schema{allOf: parts})
     end
 
-    test "allOf of objects is any value, because the cast merges the parts" do
-      assert "term()" == value(%Schema{allOf: [First, Second]})
+    test "allOf of objects is not checked, because the cast merges the parts" do
+      assert "TypeGuard.unchecked()" == value(%Schema{allOf: [First, Second]})
+    end
+
+    test "a schema that it cannot describe is not checked" do
+      for schema <- [
+            %Schema{type: :string, enum: [%{a: 1}]},
+            %Schema{type: :string, enum: []},
+            %Schema{oneOf: []},
+            %{type: :string}
+          ] do
+        assert {"TypeGuard.unchecked()", ^schema} = {value(schema), schema}
+      end
+    end
+
+    test "a schema that admits any value is term()" do
+      assert "term()" == value(%Schema{})
     end
 
     test "oneOf is the union of the branch types, also when the schema has the x-struct" do
@@ -249,6 +264,51 @@ defmodule TypeGuard.OpenApiSpexTest do
     test "a map with a value of the wrong type or an unknown key does not conform" do
       refute TypeGuard.check(Search, :t, %{term: 1, limit: 10})
       refute TypeGuard.check(Search, :t, %{term: "a", limit: 10, other: 1})
+    end
+  end
+
+  describe "a module with unchecked: :raise" do
+    defp compile_schema(name, schema) do
+      module = Module.concat(TypeGuard.Fixtures.OpenApiSpex, name)
+
+      Code.compile_string("""
+      defmodule #{inspect(module)} do
+        use TypeGuard, unchecked: :raise
+
+        @schema #{schema}
+        def schema, do: @schema
+
+        @type t() :: unquote(TypeGuard.OpenApiSpex.type(@schema, __MODULE__))
+      end
+      """)
+
+      module
+    end
+
+    test "does not compile with a schema that is not checked" do
+      assert_raise TypeGuard.UncheckedError, ~r/cannot check TypeGuard.unchecked\(\)/, fn ->
+        compile_schema(
+          "StrictReference",
+          ~s(%OpenApiSpex.Schema{type: :object, properties: %{owner: %OpenApiSpex.Reference{"$ref": "#/components/schemas/Owner"}}})
+        )
+      end
+    end
+
+    test "checks an upload as a Plug.Upload or a string" do
+      module =
+        compile_schema(
+          "StrictUpload",
+          "%OpenApiSpex.Schema{type: :string, format: :binary}"
+        )
+
+      upload = %Plug.Upload{path: "/tmp/a", filename: "a.png", content_type: "image/png"}
+
+      assert {:ok, ^upload} = OpenApiSpex.Cast.cast(module.schema(), upload, %{})
+      assert {:ok, "text"} = OpenApiSpex.Cast.cast(module.schema(), "text", %{})
+      assert TypeGuard.check(module, :t, upload)
+      assert TypeGuard.check(module, :t, "text")
+      refute TypeGuard.check(module, :t, 1)
+      refute TypeGuard.check(module, :t, %{path: "/tmp/a"})
     end
   end
 end

@@ -64,7 +64,7 @@ their typespec. These types have an override:
 | `String.t()` | `is_binary/1` |
 | `Date.t()`, `Time.t()`, `DateTime.t()`, `NaiveDateTime.t()`, `Duration.t()` | `is_struct/2` |
 | `MapSet.t()`, `Range.t()`, `Regex.t()`, `URI.t()`, `Version.t()` | `is_struct/2` |
-| `Decimal.t()` | `is_struct/2` |
+| `Decimal.t()`, `Plug.Upload.t()` | `is_struct/2` |
 
 An override does not check the parameters of a type: `MapSet.t(String.t())`
 checks for a `MapSet` only.

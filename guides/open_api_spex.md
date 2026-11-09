@@ -65,12 +65,19 @@ generate a function that reads the cast body of a conn as `t()`.
 - A typespec cannot state most constraints of a schema, such as `pattern` or
   `maxItems`. The cast still checks them. A positive `minItems` gives a nonempty
   list, `[t, ...]`, whatever the number is.
-- `%OpenApiSpex.Reference{}` has the type `term()`, because its target is known
-  only at run time. Name the schema module instead.
+- `%OpenApiSpex.Reference{}` has the type `TypeGuard.unchecked()`, because its
+  target is known only at run time. Name the schema module instead.
+- A schema that this integration cannot describe also has the type
+  `TypeGuard.unchecked()`: an `allOf` of several object parts, an `enum` member
+  that is not an atom, an integer, a string or a float, and an empty `oneOf`,
+  `anyOf` or `enum`. A module that uses TypeGuard with `unchecked: :raise` does
+  not compile with such a schema. See
+  [Unchecked types](remote_types.md#unchecked-types). A schema that admits any
+  value, such as one without a `type`, has the type `term()`.
 - A typespec cannot name a string key of a map, so properties with string names
   and additional properties share one optional `String.t()` key.
-- `format: :binary` has the type `term()`, because a multipart file part casts
-  into a `Plug.Upload`.
+- `format: :binary` has the type `Plug.Upload.t() | String.t()`. A multipart
+  file part casts into a `Plug.Upload`, and the cast also accepts a string.
 - An `x-validate` module replaces the cast, so this integration cannot read the
   value that it returns. A string schema with a validator has the type
   `String.t()`. A validator that returns another type needs a schema with that

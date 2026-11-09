@@ -19,7 +19,8 @@ defmodule TypeGuard.Overrides do
     {Version, :t} => {:struct, Version},
 
     # Dependencies
-    {Decimal, :t} => {:struct, Decimal}
+    {Decimal, :t} => {:struct, Decimal},
+    {Plug.Upload, :t} => {:struct, Plug.Upload}
   }
 
   @doc false

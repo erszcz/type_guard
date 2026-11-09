@@ -48,7 +48,10 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
     is the exception: it makes the type a nonempty list, `[t, ...]`. That is
     weaker than `minItems: 3`, but it holds for every value of the schema.
 
-    A schema that this module cannot describe has the type `term()`.
+    A schema that this module cannot describe has the type
+    `TypeGuard.unchecked()`. Static tools read it as `term()`. A module that
+    uses TypeGuard with `unchecked: :raise` does not compile with it. A schema
+    that admits any value, such as one without a `type`, has the type `term()`.
 
     ## References to other schema modules
 
@@ -58,8 +61,8 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
     both types. The reference stays a remote type, so a schema does not depend
     on another schema at compile time.
 
-    A `%OpenApiSpex.Reference{}` has the type `term()`, because its target is
-    known only at run time.
+    A `%OpenApiSpex.Reference{}` has the type `TypeGuard.unchecked()`, because
+    its target is known only at run time.
 
     ## Custom validators
 
@@ -120,7 +123,7 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
 
     # The type of a value of `schema`.
     defp value(module) when is_atom(module) and not is_nil(module), do: remote(module, :t)
-    defp value(%Reference{}), do: term()
+    defp value(%Reference{}), do: unchecked()
 
     defp value(%Schema{nullable: true} = schema),
       do: union([value(%{schema | nullable: false}), nil])
@@ -144,7 +147,7 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
       end
     end
 
-    defp value(_other), do: term()
+    defp value(_other), do: unchecked()
 
     # The cast of `allOf` casts the value with each part. Scalars stay as they are, and the maps of
     # object parts merge. One part gives the value of that part. An inline scalar part gives the
@@ -153,7 +156,7 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
 
     defp all_of(parts) do
       case Enum.find(parts, &scalar?/1) do
-        nil -> term()
+        nil -> unchecked()
         part -> value(part)
       end
     end
@@ -174,8 +177,11 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
 
     defp by_type(%Schema{type: :string, format: :"date-time"}), do: remote(DateTime, :t)
     defp by_type(%Schema{type: :string, format: :date}), do: remote(Date, :t)
-    # A multipart file part casts into a `Plug.Upload`.
-    defp by_type(%Schema{type: :string, format: :binary}), do: term()
+    # A multipart file part casts into a `Plug.Upload`. The cast also accepts a
+    # string.
+    defp by_type(%Schema{type: :string, format: :binary}),
+      do: union([remote(Plug.Upload, :t), string()])
+
     defp by_type(%Schema{type: :string}), do: remote(String, :t)
     defp by_type(%Schema{type: :integer}), do: {:integer, [], []}
     defp by_type(%Schema{type: :number}), do: {:number, [], []}
@@ -268,10 +274,10 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
     defp literal(value) when is_atom(value) or is_integer(value), do: value
     defp literal(value) when is_binary(value), do: string()
     defp literal(value) when is_float(value), do: {:float, [], []}
-    defp literal(_value), do: term()
+    defp literal(_value), do: unchecked()
 
     # A union without repeated members. Elixir writes a union as nested `|` operators.
-    defp union([]), do: term()
+    defp union([]), do: unchecked()
 
     defp union(types) do
       types
@@ -287,6 +293,7 @@ if Code.ensure_loaded?(OpenApiSpex.Schema) do
     defp remote(module, name), do: {{:., [], [module, name]}, [], []}
     defp string, do: remote(String, :t)
     defp term, do: {:term, [], []}
+    defp unchecked, do: remote(TypeGuard, :unchecked)
     defp optional(type), do: {:optional, [], [type]}
   end
 end
