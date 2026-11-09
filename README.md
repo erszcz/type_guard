@@ -59,7 +59,9 @@ end
   [Remote types](guides/remote_types.md).
 - **What cannot be checked is trusted, and reported.** Types with
   parameters, types of project modules that do not use TypeGuard and opaque
-  types of other applications pass. `TypeGuard.Coverage` lists them.
+  types of other applications pass. `TypeGuard.Coverage` lists them. With
+  `unchecked: :raise`, a module makes each of them an error instead. See
+  [Unchecked types](guides/remote_types.md#unchecked-types).
 - **Integrations turn on by themselves.** With Ecto, `TypeGuard.Ecto`
   validates changesets against `t()`. With PolymorphicEmbed, a polymorphic
   field is checked against its declared embed modules. See

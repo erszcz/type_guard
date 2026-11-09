@@ -12,7 +12,8 @@ defmodule TypeGuard.Coverage do
       when the module uses `TypeGuard` and checks the type, and `:trusted`
       otherwise.
     * `:trusted` - not checked: a type with parameters, a type that a
-      typespec does not define, or a type deeper than the expansion limit.
+      typespec does not define, a type deeper than the expansion limit, or
+      `TypeGuard.unchecked()`.
 
   See the [remote types guide](remote_types.md).
   """

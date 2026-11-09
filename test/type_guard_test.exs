@@ -123,6 +123,10 @@ defmodule TypeGuardTest do
       refute check(:nothing, nil)
     end
 
+    test "TypeGuard.unchecked() is not checked" do
+      assert check(:marked, :anything)
+    end
+
     test "function types check the arity" do
       assert check(:callback, fn _n, _a -> true end)
       refute check(:callback, fn _n -> true end)

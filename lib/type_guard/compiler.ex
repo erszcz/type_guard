@@ -20,9 +20,21 @@ defmodule TypeGuard.Compiler do
     Process.put(@references, [])
     Process.put(@inlined, MapSet.new())
 
-    base = %{module: module, env: env, locals: locals, seen: [], depth: @max_depth, record?: true}
-    v = Macro.var(:value, __MODULE__)
     types = selected_types(module, uses)
+
+    base = %{
+      module: module,
+      env: env,
+      locals: locals,
+      seen: [],
+      depth: @max_depth,
+      record?: true,
+      strict?: Enum.any?(uses, &(Keyword.get(&1, :unchecked) == :raise)),
+      checked: for({name, _body} <- types, do: name),
+      root: nil
+    }
+
+    v = Macro.var(:value, __MODULE__)
     all_struct_fields = struct_fields(module, locals, env)
     struct_fields = if List.keymember?(types, :t, 0), do: all_struct_fields
 
@@ -30,7 +42,10 @@ defmodule TypeGuard.Compiler do
       for {field, type} <- struct_fields || [] do
         quote do
           def __type_guard_field__(unquote(field), unquote(v)),
-            do: unquote(check(type, v, %{base | seen: [{:t, 0}]}))
+            do:
+              unquote(
+                check(type, v, %{base | seen: [{:t, 0}], root: "the field #{field} of t()"})
+              )
         end
       end
 
@@ -39,7 +54,7 @@ defmodule TypeGuard.Compiler do
         code =
           if name == :t and struct_fields,
             do: struct_check(module, struct_fields, v),
-            else: check(body, v, %{base | seen: [{name, 0}]})
+            else: check(body, v, %{base | seen: [{name, 0}], root: "#{name}()"})
 
         quote do
           def __type_guard__(unquote(name), unquote(v)), do: unquote(code)
@@ -286,7 +301,8 @@ defmodule TypeGuard.Compiler do
   def check({name, _, args}, v, ctx) when is_atom(name) and (is_list(args) or is_atom(args)),
     do: local(name, type_args(args), v, ctx)
 
-  def check(_other, _v, _ctx), do: true
+  def check(other, _v, ctx),
+    do: unchecked(ctx, "#{Macro.to_string(other)}, which is not a type that it knows")
 
   defp union_members({:|, _, [left, right]}), do: union_members(left) ++ union_members(right)
   defp union_members(type), do: [type]
@@ -352,26 +368,41 @@ defmodule TypeGuard.Compiler do
 
     cond do
       args != [] ->
-        true
+        unchecked(ctx, "#{name}/#{length(args)}, a type with parameters")
 
       key in ctx.seen ->
         # A recursive type: a public one calls its own check, a private one
         # is not checked.
         case ctx.locals do
           %{^key => {kind, _body}} when kind in [:type, :opaque] ->
+            if name not in ctx.checked,
+              do: unchecked(ctx, "#{name}(), a recursive type that the module does not check")
+
             quote(do: __type_guard__(unquote(name), unquote(v)))
 
           _ ->
-            true
+            unchecked(ctx, "#{name}(), a recursive private type")
         end
 
       true ->
         case ctx.locals do
           %{^key => {_kind, body}} -> check(body, v, %{ctx | seen: [key | ctx.seen]})
-          _ -> true
+          _ -> unchecked(ctx, "#{name}(), a built-in type that it does not know")
         end
     end
   end
+
+  @doc false
+  # A part of a check that is not checked. It is `true`, and a compile error in
+  # a module that uses TypeGuard with `unchecked: :raise`.
+  @spec unchecked(map(), String.t()) :: true
+  def unchecked(%{strict?: true} = ctx, what) do
+    raise TypeGuard.UncheckedError,
+          "#{inspect(ctx.env.module)} uses TypeGuard with unchecked: :raise, " <>
+            "but the check of #{ctx.root} cannot check #{what}"
+  end
+
+  def unchecked(_ctx, _what), do: true
 
   @doc false
   # Checks `mod.name(args)`. The overrides come first. A module of the
@@ -381,26 +412,37 @@ defmodule TypeGuard.Compiler do
   def remote(mod, name, args, v, ctx) do
     arity = length(args)
 
+    ref = "#{inspect(mod)}.#{name}/#{arity}"
+
     {kind, code} =
       cond do
+        mod == TypeGuard and name == :unchecked and arity == 0 ->
+          {:trusted, unchecked(ctx, "TypeGuard.unchecked(), which marks a value as not checked")}
+
         override = Overrides.check(mod, name, arity, v) ->
+          if arity != 0, do: unchecked(ctx, "the parameters of #{ref}")
           {:override, override}
 
         mod == ctx.module ->
           {:local, local_type(name, args, v, ctx)}
 
         arity != 0 ->
-          {:trusted, true}
+          {:trusted, unchecked(ctx, "#{ref}, a type with parameters")}
 
         TypeGuard.adopted?(mod) or not external?(mod) ->
-          {:runtime, quote(do: TypeGuard.check(unquote(mod), unquote(name), unquote(v)))}
+          {:runtime, runtime_check(mod, name, v, ctx)}
 
+        # Only inside an inlined typespec, which `unchecked: :raise` does not cover.
         ctx.depth == 0 ->
           {:trusted, true}
 
         true ->
-          case Spec.check(mod, name, v, %{ctx | depth: ctx.depth - 1, record?: false}) do
-            :error -> {:trusted, true}
+          # The typespecs of other applications are trusted where they cannot be
+          # checked, also with `unchecked: :raise`.
+          inlined = %{ctx | depth: ctx.depth - 1, record?: false, strict?: false}
+
+          case Spec.check(mod, name, v, inlined) do
+            :error -> {:trusted, unchecked(ctx, "#{ref}, which has no typespec to read")}
             {:ok, code} -> {:spec, code}
           end
       end
@@ -410,6 +452,22 @@ defmodule TypeGuard.Compiler do
 
     code
   end
+
+  # A module with `unchecked: :raise` raises when the other module does not
+  # check the type.
+  defp runtime_check(mod, name, v, %{strict?: true} = ctx) do
+    quote do
+      TypeGuard.__check_strict__(
+        unquote(mod),
+        unquote(name),
+        unquote(v),
+        unquote(ctx.env.module)
+      )
+    end
+  end
+
+  defp runtime_check(mod, name, v, _ctx),
+    do: quote(do: TypeGuard.check(unquote(mod), unquote(name), unquote(v)))
 
   # A module whose beam is outside the project being compiled: a dependency,
   # Elixir or Erlang/OTP. Its types do not change while the project runs.

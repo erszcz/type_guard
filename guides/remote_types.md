@@ -82,3 +82,27 @@ TypeGuard.Coverage.trusted(modules)
 
 A project module in that list can `use TypeGuard`. A type with parameters
 stays trusted.
+
+## Unchecked types
+
+By default, a part of a type that a check cannot check lets any value pass.
+With `use TypeGuard, unchecked: :raise`, the module makes it an error:
+
+- At compile time, the module does not compile when one of its checked types
+  uses a type with parameters, a recursive private type, a recursive type that
+  the module does not check, a built-in type that TypeGuard does not know, a
+  type of another application without a typespec, an override with
+  parameters, or `TypeGuard.unchecked()`.
+- At run time, a check raises `TypeGuard.UncheckedError` when it calls a type
+  of another project module that does not use TypeGuard, or that does not
+  check that type. That module can compile after this one, so the check
+  happens when it is called.
+
+`TypeGuard.unchecked()` is `term()` for static tools. Generated code can use it
+to mark a value whose type it does not know, so that a module with
+`unchecked: :raise` cannot compile with it.
+
+The typespec of another application is still trusted where it cannot be
+checked, for example below the expansion limit or in an opaque type that is
+not a struct. A module with `unchecked: :raise` applies the option to its own
+checks. A type of another module is checked by the options of that module.

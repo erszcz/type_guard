@@ -57,6 +57,7 @@ defmodule TypeGuard.Fixtures.Shapes do
   @type callback() :: (integer(), atom() -> boolean())
   @type thunk() :: (-> atom())
   @type any_arity() :: (... -> atom())
+  @type marked() :: TypeGuard.unchecked()
   @type uses_private() :: secret()
   @typep secret() :: :hidden | :shown
 end
@@ -173,6 +174,29 @@ end
 defmodule TypeGuard.Fixtures.UsesPlain do
   @moduledoc false
   use TypeGuard
+
+  @type t() :: TypeGuard.Fixtures.Plain.t()
+end
+
+defmodule TypeGuard.Fixtures.Strict do
+  @moduledoc false
+  # Its checks raise where they meet a type that is not checked.
+  use TypeGuard, unchecked: :raise
+
+  alias TypeGuard.Fixtures.{Ids, OnlyId, Plain}
+
+  @type id() :: OnlyId.id()
+  @type name() :: OnlyId.name()
+  @type plain() :: Plain.t()
+  @type missing() :: Ids.no_such_type()
+  @type tree() :: %{value: integer(), children: [tree()]}
+  @type queue() :: :queue.queue()
+end
+
+defmodule TypeGuard.Fixtures.StrictInOneUse do
+  @moduledoc false
+  use TypeGuard
+  use TypeGuard, only: [:t], unchecked: :raise
 
   @type t() :: TypeGuard.Fixtures.Plain.t()
 end

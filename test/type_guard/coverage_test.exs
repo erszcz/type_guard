@@ -14,11 +14,13 @@ defmodule TypeGuard.CoverageTest do
              {Ecto.Changeset, :types} => :spec,
              {DateTime, :t} => :override,
              {UUIDv7, :t} => :spec,
-             {System, :time_unit} => :spec
+             {System, :time_unit} => :spec,
+             {TypeGuard, :unchecked} => :trusted
            } == checks
   end
 
   test "trusted/1 counts the references that are not checked" do
-    assert %{{Plain, :t, 0} => 1} == Coverage.trusted([UsesPlain, Shapes])
+    assert %{{Plain, :t, 0} => 1, {TypeGuard, :unchecked, 0} => 1} ==
+             Coverage.trusted([UsesPlain, Shapes])
   end
 end

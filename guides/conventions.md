@@ -23,6 +23,8 @@ end
 - `except: [:t]` checks all public types but the named ones.
 - `allow_missing: true` ignores names in `:only` or `:except` that the
   module does not define, instead of raising at compile time.
+- `unchecked: :raise` makes each part of a type that the checks cannot check
+  an error. See [Unchecked types](remote_types.md#unchecked-types).
 - `blank: true` defines `blank()`. See [Blank structs](#blank-structs).
 
 A module whose uses select no type, such as one without an `id()` under

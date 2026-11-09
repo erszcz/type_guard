@@ -46,6 +46,14 @@ defmodule TypeGuard do
       `@type blank()`: the same struct type with `nil` allowed in each field.
       A struct built with `%__MODULE__{}` before its fields are set has this
       type. Defaults to `false`.
+    * `:unchecked` - what a check does with a part of a type that it cannot
+      check. `:trust` (the default) lets any value pass that part. `:raise`
+      makes it an error: a part that is known at compile time stops the
+      compilation, and a type of a project module that the module does not
+      check raises `TypeGuard.UncheckedError` when a check calls it. The
+      typespecs of other applications are still trusted where they cannot be
+      checked. A module with several uses raises when any of them gives
+      `:raise`. See [Unchecked types](remote_types.md#unchecked-types).
 
   A module whose uses select no type generates no checks, and
   `adopted?/1` returns `false` for it.
@@ -58,7 +66,16 @@ defmodule TypeGuard do
   @typedoc "The name of a type without parameters, such as `:t` for `t()`."
   @type type_name() :: atom()
 
-  @options [:only, :except, :allow_missing, :blank]
+  @typedoc """
+  A value that a check does not check: `term()` for static tools.
+
+  A type can name it where a precise type is not known, for example in
+  generated code. A module that uses TypeGuard with `unchecked: :raise` fails
+  to compile when one of its checked types uses it.
+  """
+  @type unchecked() :: term()
+
+  @options [:only, :except, :allow_missing, :blank, :unchecked]
 
   @doc false
   defmacro __using__(opts) do
@@ -68,6 +85,12 @@ defmodule TypeGuard do
     unless Keyword.keyword?(opts) and Enum.all?(Keyword.keys(opts), &(&1 in @options)) do
       raise ArgumentError,
             "use TypeGuard in #{inspect(module)}: the options are #{inspect(@options)}, got: #{inspect(opts)}"
+    end
+
+    unless Keyword.get(opts, :unchecked, :trust) in [:trust, :raise] do
+      raise ArgumentError,
+            "use TypeGuard in #{inspect(module)}: :unchecked is :trust or :raise, got: " <>
+              inspect(Keyword.get(opts, :unchecked))
     end
 
     first? = not Module.has_attribute?(module, :type_guard_uses)
@@ -92,6 +115,35 @@ defmodule TypeGuard do
   @spec check(module(), type_name(), term()) :: boolean()
   def check(module, type, value) when is_atom(module) and is_atom(type) do
     if adopted?(module), do: module.__type_guard__(type, value), else: true
+  end
+
+  @doc false
+  # The check of a type of another module in a module that uses TypeGuard with
+  # `unchecked: :raise`.
+  @spec __check_strict__(module(), type_name(), term(), module()) :: boolean()
+  def __check_strict__(module, type, value, referrer) do
+    cond do
+      not adopted?(module) ->
+        raise TypeGuard.UncheckedError,
+              unchecked_message(
+                referrer,
+                module,
+                type,
+                "#{inspect(module)} does not use TypeGuard"
+              )
+
+      type not in module.__type_guard__(:types) ->
+        raise TypeGuard.UncheckedError,
+              unchecked_message(referrer, module, type, "#{inspect(module)} does not check it")
+
+      true ->
+        module.__type_guard__(type, value)
+    end
+  end
+
+  defp unchecked_message(referrer, module, type, reason) do
+    "#{inspect(referrer)} uses TypeGuard with unchecked: :raise and checks a value " <>
+      "against #{inspect(module)}.#{type}(), but #{reason}"
   end
 
   @doc "Returns `true` if `module` is loaded and uses `TypeGuard`."
